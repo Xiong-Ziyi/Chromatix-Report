@@ -1,1 +1,1 @@
-# Chromatix-Report
+# `Chromatix` report
