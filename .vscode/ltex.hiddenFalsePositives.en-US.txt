@@ -1,0 +1,1 @@
+{"rule":"DT_JJ_NO_NOUN","sentence":"^\\QWhen \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q is a function (a callable)\\E$"}
