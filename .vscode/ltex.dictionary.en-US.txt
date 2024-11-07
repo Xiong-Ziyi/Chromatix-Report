@@ -2,3 +2,4 @@ defocused
 JAX
 wavevector
 vectorial
+binarized
