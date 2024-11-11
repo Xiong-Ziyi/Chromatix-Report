@@ -3,3 +3,4 @@ JAX
 wavevector
 vectorial
 binarized
+IFFT
