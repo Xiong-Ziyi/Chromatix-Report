@@ -4,3 +4,4 @@ wavevector
 vectorial
 binarized
 IFFT
+paraxial
