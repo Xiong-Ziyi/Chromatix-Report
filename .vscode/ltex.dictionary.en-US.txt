@@ -5,3 +5,8 @@ vectorial
 binarized
 IFFT
 paraxial
+Frobenius
+birefringent
+ellipticity
+uniaxial
+Uniaxial
