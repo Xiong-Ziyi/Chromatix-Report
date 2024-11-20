@@ -10,3 +10,6 @@ birefringent
 ellipticity
 uniaxial
 Uniaxial
+Halfwave
+Quarterwave
+halfwave
