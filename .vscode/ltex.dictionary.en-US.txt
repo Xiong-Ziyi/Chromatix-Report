@@ -13,3 +13,5 @@ Uniaxial
 Halfwave
 Quarterwave
 halfwave
+LC-PolScope
+retardance
