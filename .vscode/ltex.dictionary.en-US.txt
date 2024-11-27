@@ -16,3 +16,4 @@ halfwave
 LC-PolScope
 retardance
 precompensation
+umsmooth
