@@ -19,3 +19,4 @@ precompensation
 umsmooth
 bandlimit
 bandlimiting
+bandpass
