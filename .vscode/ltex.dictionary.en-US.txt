@@ -17,3 +17,6 @@ LC-PolScope
 retardance
 precompensation
 umsmooth
+bandlimit
+bandlimiting
+bandpass
