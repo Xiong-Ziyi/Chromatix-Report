@@ -20,3 +20,4 @@ umsmooth
 bandlimit
 bandlimiting
 bandpass
+Chebyshev
