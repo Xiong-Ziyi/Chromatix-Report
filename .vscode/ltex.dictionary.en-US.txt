@@ -22,3 +22,4 @@ bandlimiting
 bandpass
 Chebyshev
 iterables
+fluorophores
