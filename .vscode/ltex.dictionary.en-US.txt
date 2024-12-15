@@ -23,3 +23,5 @@ bandpass
 Chebyshev
 iterables
 fluorophores
+dataclasses
+Chromatix
