@@ -25,3 +25,4 @@ iterables
 fluorophores
 dataclasses
 Chromatix
+PyTree
