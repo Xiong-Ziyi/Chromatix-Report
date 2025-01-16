@@ -56,3 +56,5 @@ Eybposh
 defocuses
 defocus
 Optax
+Zernike
+Seidel
