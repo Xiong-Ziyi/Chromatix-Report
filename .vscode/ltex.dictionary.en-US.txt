@@ -58,3 +58,4 @@ defocus
 Optax
 Zernike
 Seidel
+collimated
