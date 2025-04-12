@@ -1,0 +1,357 @@
+\documentclass[a4paper,12pt]{report}
+
+\usepackage{bookmark}
+\usepackage{geometry}
+\geometry{margin=1in}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{color}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{titling}
+\usepackage{fancyhdr}
+\usepackage{amssymb}
+
+\lstset{
+    basicstyle=\ttfamily\footnotesize,
+    frame=single,
+    backgroundcolor=\color{gray!10},
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!50!black},
+    stringstyle=\color{orange},
+    numbers=left,
+    numberstyle=\tiny,
+    numbersep=5pt,
+    showstringspaces=false,
+    breaklines=true
+}
+
+\title{\textbf{Internship Report on Chromatix}}
+\author{Ziyi Xiong\\Master Student in Photonics, Abbe School of Photonics}
+\date{\today}
+
+\begin{document}
+
+%------------------ Title Page ------------------
+\begin{titlepage}
+    \centering
+    \vspace*{0.5cm}
+    \includegraphics[width=0.35\textwidth]{ASP.jpeg}\hfill\includegraphics[width=0.35\textwidth]{IAP.jpg}
+    \vspace{2cm}
+    {\Huge\bfseries Internship Report\\[0.5cm]}
+    {\Large on \textit{Chromatix}}\\[1.5cm]
+
+    \raggedright
+    \large \textbf{Author:} Ziyi Xiong\\
+    Master Student in Photonics, Abbe School of Photonics\\[0.3cm]
+    \textbf{Internship Period:} 01-09-2024 to 28-02-2025\\[0.3cm]
+    \textbf{University Supervisor:} Prof. Dr. Vladan Blahnik, Institute of Applied Physics\\[0.3cm]
+    \textbf{Industry Advisor:} Prof. Dr. Frank Wyrowski, President of LightTrans GmbH\\[0.3cm]
+
+    \vfill
+    \date{\today}
+\end{titlepage}
+\clearpage
+
+%------------------ Page Style ------------------
+\pagestyle{fancy}
+\fancyhf{}
+\setlength{\headheight}{15pt} % eliminate fancyhdr warning
+\rhead{\thepage}
+\lhead{\textit{Internship Report: Chromatix}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\tableofcontents
+\clearpage
+
+%----------------------------------------------------------
+\chapter{Introduction}
+\section{Context of the Internship}
+The internship was conducted under the joint guidance of my university supervisor, Prof. Dr. Vladan Blahnik, and my industry advisor, Prof. Dr. Frank Wyrowski. The project entailed a deep-dive analysis into the open-source Python library known as \textbf{Chromatix}, which was originally developed at HHMI Janelia Research Campus. This library leverages wave-optics and advanced computational frameworks (notably JAX and FLAX) to enable \textit{differentiable} simulations of optical systems.\newline
+\newline
+My role was to thoroughly understand Chromatix, from its underlying wave-optical theory to the structure of its Python source code, and to explore real use cases. Specifically, I examined how each class, function, and module contributes to building optical elements, performing wave propagation, and enabling inverse-design tasks such as optimizing lens parameters and masks.
+
+\section{Goals and Objectives}
+The primary goals of this internship were:
+\begin{enumerate}
+    \item \textbf{Comprehensive Code Analysis:} Understand and document the organization and functionality of the Chromatix library (classes, functions, modules).
+    \item \textbf{Theoretical Foundations:} Relate each function's or class's implementation to the fundamental physics of wave optics (e.g., Fresnel diffraction, Fourier transforms, Jones calculus, etc.).
+    \item \textbf{Practical Demonstrations:} Demonstrate usage through multiple example systems (simple widefield PSF simulation, a 4f system, and a CGH setup using a Digital Micromirror Device (DMD)).
+    \item \textbf{Evaluation \& Future Prospects:} Critically assess strengths, limitations, and propose future directions for library development.
+\end{enumerate}
+
+\section{Structure of This Report}
+This report is divided into the following chapters:
+\begin{itemize}
+    \item \textbf{Chapter 1: Introduction} - Provides an overview of the internship objectives and a brief introduction to Chromatix.
+    \item \textbf{Chapter 2: Chromatix in Detail} - Delves into the design principles, module structure, and theoretical basis of the library.
+    \item \textbf{Chapter 3: Core Source Code Analysis} - Explores the main classes and functions in Chromatix, mapping them to wave-optical principles.
+    \item \textbf{Chapter 4: Practical Usage Examples} - Demonstrates real-world simulations using Chromatix with extended code snippets.
+    \item \textbf{Chapter 5: Conclusions \& Future Work} - Summarizes key findings and offers recommendations for further improvements.
+\end{itemize}
+
+%----------------------------------------------------------
+\chapter{Chromatix in Detail}
+\section{Overview}
+Chromatix is a differentiable wave-optics library designed to model complex optical systems while allowing gradient-based optimization, thanks to the JAX ecosystem. Key features include:
+\begin{itemize}
+    \item \textbf{GPU Acceleration}: Offloading large-scale computations to GPUs or TPUs.
+    \item \textbf{Inverse Design}: Using auto-differentiation to iteratively refine system parameters (e.g., lens curvature, phase masks).
+    \item \textbf{Modular Architecture}: Dividing code into multiple packages (\texttt{data}, \texttt{functional}, \texttt{elements}, etc.) for clarity and maintainability.
+    \item \textbf{Multi-Wavelength \& Polarization Handling}: Scalar and vector fields, and spectral weighting.
+\end{itemize}
+
+\section{High-Level Package Breakdown}
+\textbf{Chromatix} is organized into six major packages plus two additional modules:
+\begin{itemize}
+    \item \textbf{data}: Generates fundamental optical patterns (radial shapes, grayscale images) and can create permittivity tensors for materials. While not central to wave-propagation, it provides ready-made data for simulation.
+    \item \textbf{functional}: Implements physical transformations like Fresnel or Angular Spectrum propagation, lens-induced phase changes, amplitude/phase masks, polarizers, and sensor operations. This package is the mathematical backbone, reliant heavily on JAX (\texttt{jax.numpy}).
+    \item \textbf{elements}: Encapsulates optical components as trainable modules (subclasses of \texttt{flax.linen.Module}). For example, \textit{lens elements}, \textit{phase mask elements}, etc. This design allows each element to be optimized via gradient-based methods.
+    \item \textbf{systems}: Provides the \texttt{OpticalSystem} class to combine multiple \textit{elements} into a pipeline. Example systems include a standard microscope (\texttt{Microscopy}) and a 4f system (\texttt{Optical4FSystemPSF}).
+    \item \textbf{ops}: Supplies typical image-processing utilities (filters, noise, quantization) that can be integrated into pipeline simulations.
+    \item \textbf{utils}: Hosts a variety of helper functions (FFT wrappers, 2D/3D shape generation, Zernike polynomials, wavefront aberrations, etc.) to support the core simulation tasks.
+    \item \textbf{field.py}: Defines the \texttt{Field} class (with \texttt{ScalarField} and \texttt{VectorField}) that serve as the data structure for complex wave fields. Includes sampling intervals, wavelength arrays, and advanced indexing.
+    \item \textbf{\_\_init\_\_\.py}: Basic initializations, ensuring that the library is well-structured upon import.
+\end{itemize}
+
+\section{Core Theoretical Concepts}
+Chromatix leverages fundamental wave optics:
+\begin{enumerate}
+    \item \textbf{Fourier Optics}: The library heavily uses Fourier transforms to handle propagations (Fresnel, Fraunhofer, Angular Spectrum).
+    \item \textbf{Jones Calculus}: Particularly for vector fields, polarizers, and wave plates.
+    \item \textbf{Sampling Theory}: Ensuring that the discretized fields respect sampling requirements, particularly for FFT-based methods.
+    \item \textbf{Differentiable Programming}: JAX's automatic differentiation engine allows every wave transform to be differentiable w.r.t. design parameters.
+\end{enumerate}
+
+%----------------------------------------------------------
+\chapter{Core Source Code Analysis}
+\section{Field Class (\texttt{field.py})}
+The \textbf{Field} class (and its scalar/vector variants) is the centerpiece:
+\begin{itemize}
+    \item \textbf{u}: A complex array representing the electromagnetic field samples. Typically shaped as $(B..., H, W, C, [1|3])$, where $H\times W$ is the spatial grid, $C$ is the number of spectral channels, and $[1|3]$ indicates scalar or vector fields.
+    \item \textbf{\_dx}: Sampling intervals (y, x) specifying real-space pixel sizes.
+    \item \textbf{\_spectrum}: One or more wavelengths used in the field (multi-wavelength simulations supported).
+    \item \textbf{\_spectral\_density}: Respective weights of each wavelength.
+\end{itemize}
+\noindent \textbf{Key Methods} include:
+\begin{itemize}
+    \item \texttt{grid()}: Returns spatial coordinate arrays, centered in the middle of the array.
+    \item \texttt{k\_grid()}: Returns frequency coordinates (Fourier domain) suitable for propagation computations.
+    \item \texttt{phase()}: Extracts the phase of the complex field.
+    \item \texttt{intensity()}: Computes the intensity $I=|u|^2$.
+    \item \texttt{amplitude()}: Computes the amplitude $|u|$.
+    \item Arithmetic operators (\texttt{\_\_add\_\_}, \texttt{\_\_mul\_\_}, etc.) that permit easy combinations of fields.
+\end{itemize}
+
+\subsection{Why JAX?}
+JAX transforms each function into a computation graph that can be differentiated. For wave optics, each transformation (e.g., lens phase or Fresnel propagation) is re-cast in a way that JAX can keep track of partial derivatives. This is extremely useful for tasks such as inverse design, where we want to adjust lens surfaces or mask patterns to achieve a target field.
+
+\section{Functional Package}
+The \textbf{functional} package provides static (pure) functions implementing standard optical transformations:
+\begin{itemize}
+    \item \texttt{propagation}: Single-FFT Fresnel, scalar angular spectrum, convolution-based Fresnel.
+    \item \texttt{lenses}: Phase changes simulating thin lenses.
+    \item \texttt{polarizers}: Jones matrix transformations for linear, circular, or custom polarization elements.
+    \item \texttt{sources}: Plane waves, point sources, or partial coherence fields.
+    \item \texttt{phase\_masks} / \texttt{amplitude\_masks}: Introduce user-defined or random phase/amplitude patterns.
+\end{itemize}
+
+\section{Elements Package}
+The \textbf{elements} package wraps functional transformations into \texttt{flax.linen.Module} classes, making them trainable modules. Examples:
+\begin{itemize}
+    \item \texttt{FFLens}: A lens element that imposes a phase transformation from front to back focal planes.
+    \item \texttt{Polarizer} classes for modeling wave plates, polarizer filters, etc.
+    \item \texttt{PhaseMask} and \texttt{AmplitudeMask}: Potentially trainable masks for inverse design.
+\end{itemize}
+
+\section{Systems Package}
+\begin{itemize}
+    \item \texttt{OpticalSystem}: A container that sequentially applies elements, enabling complex system simulation (microscopes, telescopes, etc.).
+    \item \texttt{Microscopy} and \texttt{Optical4FSystemPSF}: Pre-built specialized classes for immediate usage.
+\end{itemize}
+
+\section{Performance Considerations}
+Chromatix performance depends on array shapes and the complexity of transformations. JAX and XLA (Accelerated Linear Algebra) can compile repeated operations for speed. However, high-resolution fields can be memory-intensive, especially if running multiple parallel wave calculations (e.g., multi-wavelength or batch). GPU usage is recommended.
+
+%----------------------------------------------------------
+\chapter{Practical Usage Examples}
+In this chapter, I will present three extended examples that illustrate how to create and simulate optical systems with Chromatix. These examples draw from real or hypothetical use cases, accompanied by code snippets.
+
+\section{Example 1: Widefield PSF with a Lens and Phase Mask}
+\subsection{Objective}
+Simulate a basic widefield point spread function (PSF) by composing an \texttt{ObjectivePointSource}, a \texttt{PhaseMask}, and a lens element. Investigate how the PSF changes with defocus.
+
+\subsection{Code Snippet}
+\begin{lstlisting}[language=Python]
+import chromatix
+import chromatix.elements
+import jax
+import jax.numpy as jnp
+
+shape = (512, 512)
+spacing = 0.3  # microns
+spectrum = 0.532  # microns
+spectral_density = 1.0
+f = 100.0  # focal length in microns
+n = 1.33   # refractive index
+NA = 0.8   # numerical aperture
+
+optical_model = chromatix.OpticalSystem([
+    chromatix.elements.ObjectivePointSource(shape, spacing, spectrum, spectral_density,
+                                           NA=NA, n=n),
+    chromatix.elements.PhaseMask(jnp.ones(shape)),
+    chromatix.elements.FFLens(f, n)
+])
+
+# Multiple defocus planes:
+z_values = jnp.linspace(-5, 5, num=11)
+
+variables = optical_model.init(jax.random.PRNGKey(4), z_values)
+widefield_psf = optical_model.apply(variables, z_values).intensity
+
+# Now 'widefield_psf' is a stack of 11 intensity images.
+
+# Visualization
+import matplotlib.pyplot as plt
+import numpy as np
+
+fig, axes = plt.subplots(1, len(z_values), figsize=(15, 4))
+for i, z in enumerate(z_values):
+    psf_img = widefield_psf[i, :, :]
+    axes[i].imshow(psf_img, cmap='gray', origin='lower')
+    axes[i].set_title(f'z = {z:.1f} microns')
+    axes[i].axis('off')
+
+plt.tight_layout()
+plt.show()
+\end{lstlisting}
+\noindent \textbf{Key Observations:}
+\begin{itemize}
+    \item The lens + phase mask pipeline transforms the source through focal planes.
+    \item Out-of-focus planes show larger spot sizes, while in-focus planes show a tight PSF.
+    \item The entire pipeline is differentiable, so one could optimize the phase mask for a particular PSF shape.
+\end{itemize}
+
+\section{Example 2: Building a 4f System}
+\subsection{Objective}
+Construct a classic 4f imaging system to illustrate how Chromatix composes multiple elements: a \texttt{PlaneWave} source, a lens, a pupil, another lens, and a sensor. This configuration can be used for spatial filtering.
+
+\subsection{Code Snippet}
+\begin{lstlisting}[language=Python]
+import chromatix
+import chromatix.elements
+from flax import linen as nn
+import jax.numpy as jnp
+from chromatix.field import Field
+
+shape = (512, 512)
+spacing = 0.3
+f = 100.0
+n = 1.0
+
+optical_model = chromatix.OpticalSystem([
+    chromatix.elements.PlaneWave(shape, spacing, 0.532, 1.0),
+    chromatix.elements.FFLens(f, n),
+    chromatix.elements.AmplitudeMask(jnp.ones(shape)),  # e.g. a transparent mask
+    chromatix.elements.FFLens(f, n),
+    chromatix.elements.BasicSensor(shape, spacing)
+])
+
+variables = optical_model.init(jax.random.PRNGKey(4))
+output_image = optical_model.apply(variables)
+
+# 'output_image' is the intensity measured at the final sensor plane.
+\end{lstlisting}
+\noindent \textbf{Key Observations:}
+\begin{itemize}
+    \item The system is straightforward to read: wave creation, lens, mask, lens, sensor.
+    \item Chromatix seamlessly handles dimension checks, sampling intervals, and wave transforms.
+    \item One could insert a pupil or a specialized filter in the Fourier plane to manipulate the system’s transfer function.
+\end{itemize}
+
+\section{Example 3: Computer Generated Holography (CGH) with a DMD}
+\subsection{Objective}
+Use a binary amplitude mask (mimicking a DMD with ON/OFF states) to generate a target image at a certain propagation distance. This example demonstrates inverse design.
+
+\subsection{Code Snippet (Highlights)}
+\begin{lstlisting}[language=Python]
+from chromatix.systems import OpticalSystem
+from chromatix.elements import AmplitudeMask, PlaneWave
+import jax
+import jax.numpy as jnp
+import optax
+from flax.training import train_state
+
+class CGH(nn.Module):
+    # This is a simplified illustration.
+    shape: tuple = (300, 300)
+    spacing: float = 7.56
+
+    @nn.compact
+    def __call__(self, z):
+        system = OpticalSystem([
+            PlaneWave(shape=self.shape,
+                      dx=self.spacing,
+                      spectrum=0.66),
+            AmplitudeMask(trainable_init=jax.nn.initializers.uniform(1.5),
+                          is_binary=True)
+        ])
+        return transfer_propagate(system(), z, 1.0)
+
+# We can define a loss function comparing the resulting field's intensity to a target image.
+# Then use optax or jax.grad to iteratively update the amplitude mask.
+\end{lstlisting}
+\noindent \textbf{Key Observations:}
+\begin{itemize}
+    \item The amplitude mask is trainable, representing the DMD.
+    \item We define a target image and compute a loss function (e.g., cosine distance) between the simulated intensity and the target.
+    \item Each gradient update modifies the mask, eventually converging on a hologram.
+\end{itemize}
+
+%----------------------------------------------------------
+\chapter{Conclusions and Future Work}
+
+\section{Conclusions}
+Throughout this internship, I thoroughly explored the Chromatix library’s architecture, theoretical foundation, and practical use. My main achievements include:
+\begin{itemize}
+    \item Mapping each major function to the physical equations it implements (Fresnel, Fraunhofer, lens phase, etc.).
+    \item Verifying the core design principles, especially how JAX integration powers auto-differentiation and GPU acceleration.
+    \item Experimenting with real examples (widefield PSF, 4f system, DMD-based CGH) to confirm the code's clarity and correctness.
+\end{itemize}
+Chromatix has proven to be a potent tool for forward and inverse wave-optical simulations, suitable for computational microscopy, digital holography, optical design, and more.
+
+\section{Limitations}
+\begin{itemize}
+    \item \textbf{Documentation Coverage}: Although fairly detailed, the library might benefit from more advanced tutorials on specialized topics.
+    \item \textbf{Incomplete Modules}: Packages like \texttt{ops} and \texttt{systems} might require further refinement to cover advanced imaging or extended depths.
+    \item \textbf{Memory Footprint}: High-resolution fields and multi-wavelength/batch simulations can be large. GPU memory management must be planned.
+\end{itemize}
+
+\section{Future Directions}
+\begin{itemize}
+    \item \textbf{Expanding Element Library}: Incorporate new optical elements (e.g., thick lenses, refractive index gradients, volumetric scattering models).
+    \item \textbf{Performance Tuning}: Explore more advanced JAX transformations, distributed computing (pmap), or custom CUDA kernels.
+    \item \textbf{Nonlinear Optics}: Investigate extension for nonlinear processes (e.g. harmonic generation).
+    \item \textbf{Synergy with Other Tools}: Chromatix could integrate more deeply with JAXopt or additional neural-network frameworks for robust inverse design tasks.
+\end{itemize}
+
+In sum, Chromatix stands at the forefront of differentiable optics simulation, offering a robust, flexible environment for innovation in computational photonics.\newline
+\newline
+\textbf{End of Report}
+
+\clearpage
+\bibliographystyle{plain}
+\bibliography{references}
+
+\appendix
+\chapter{Appendix}
+\section{Supplementary Material}
+\begin{itemize}
+    \item Additional utility scripts or helper code can be placed here.
+    \item Extended code listings, extra figures, or large data tables.
+\end{itemize}
+
+\end{document}
