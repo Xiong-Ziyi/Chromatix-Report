@@ -58,7 +58,7 @@
     \centering Master Student in Photonics at ASP\\[0.5cm]
     
     \centering\textbf{Internship Period:}\\[0.5cm] 
-    \centering  01-09-2024 to 31-03-2025\\[0.5cm]
+    \centering  01-09-2024 to 28-02-2025\\[0.5cm]
     
     \centering \textbf{Supervisor:} \\[0.5cm]
     \centering Prof. Dr. Vladan Blahnik, Institute of Applied Physics\\[0.5cm]
@@ -504,8 +504,6 @@ class CGH(nn.Module):
 
 \subsection{Initialization and Visualization}
 
-In this part, we create a CGH system using Chromatix:
-
 \begin{verbatim}
 model = CGH()
 z = 13e4
@@ -516,13 +514,9 @@ init_img = model.apply({"params": params, "state": state}, z).intensity.squeeze(
 init_amp_mask = np.float32(params["AmplitudeMask_0"]["_amplitude"] > 0.5)
 \end{verbatim}
 
-The initial image and binarized amplitude mask are visualized using \texttt{matplotlib}. This provides a baseline before training begins:
+The initial image and binarized amplitude mask are visualized using \texttt{matplotlib}. This provides a baseline before training begins.
 
-\begin{center}
-  \includegraphics[width=0.9\linewidth]{Initial.png}
-\end{center}
-
-\subsection{Target Image and Loss Function}
+\subsection*{Target Image and Loss Function}
 
 \begin{verbatim}
 from skimage.data import cat
@@ -536,18 +530,6 @@ def loss_fn(params, state, data, z):
         jnp.sqrt(jnp.sum(approx**2) * jnp.sum(data**2)) + 1e-6)
     return loss, {"loss": loss, "correlation": correlation}
 \end{verbatim}
-
-The target image is a cut gray cat image:
-
-\begin{center}
-  \includegraphics[width=0.4\linewidth]{cat.png}
-\end{center}
-
-And the loss function is defined as the cosine distance between the generated and target images. The correlation metric is also computed to track optimization progress:
-
-\begin{center}
-  \includegraphics[width=0.6\linewidth]{optimization_process.png}
-\end{center}
 
 \subsection{Training the Hologram}
 
@@ -568,7 +550,7 @@ for iteration in range(400):
     ...
 \end{verbatim}
 
-The optimization loop uses the Adam optimizer to update the amplitude mask values and track loss and correlation over iterations:
+The optimization loop uses the Adam optimizer to update the amplitude mask values and track loss and correlation over iterations.
 
 \subsection{Results}
 
@@ -580,65 +562,19 @@ plt.subplot(1, 4, 2); plt.imshow(approx1, cmap="gray")
 plt.subplot(1, 4, 3); plt.imshow(np.float32(dmd > 0.5), cmap="gray")
 \end{verbatim}
 
-\begin{center}
-  \includegraphics[width=0.5\linewidth]{output.png}
-\end{center}
+\subsection*{Alternative: Manual Implementation}
 
-\subsection{Alternative: Manual Implementation}
+An equivalent model was also built manually using FFT-based Fresnel propagation and optimized using Optax’s Adam optimizer, confirming the results obtained with Chromatix.
 
-An equivalent model was also built manually using FFT-based Fresnel propagation and optimized using Optax's Adam optimizer, confirming the results obtained with Chromatix is better than that obtained with normal adam algorithm.
-
-Here is the result of the manual implementation:
-
-\begin{center}
-  \includegraphics[width=0.5\linewidth]{output2.png}
-\end{center}
-
-This demonstrates Chromatix's strength in modeling and optimizing complex optical systems using differentiable programming techniques and neural network.
+This demonstrates Chromatix’s strength in modeling and optimizing complex optical systems using differentiable programming techniques.
 
 
 \chapter{Conclusion and Future Work}
 \section{Conclusion}
-Throughout this internship, I dedicated considerable time to analyzing not only Chromatix's core functionalities and theoretical underpinnings but also its architecture and broader potential for driving innovation in optical research. By carefully studying every line of code and mapping it to the physics of wave optics, I gained a deep appreciation for how Chromatix harnesses JAX's auto-differentiation.
-
-\vspace{0.5em}
-Key accomplishments and insights include:
-
-\vspace{0.5em}
-1. \textbf{Deep Understanding of Code-Physics Correlation}: The direct relationships between Fourier-based propagation methods and the library’s functions are clearly documented, revealing an elegant balance between computational efficiency and physical accuracy.
-
-\vspace{0.5em}
-2. \textbf{Hands-on Experiments}: The practical examples I ran—like the 4f system and the CGH simulation—highlight how Chromatix can serve both forward modeling (predicting system outputs) and inverse tasks (optimizing masks or system configurations).
-
-\vspace{0.5em}
-3. \textbf{Potential for Cross-Disciplinary Use}: While originally conceived for optics research, the modular design and open-source nature suggest it could be extended or integrated with adjacent fields (e.g., computational imaging, deep learning for inverse problems) quite seamlessly.
-
-\vspace{0.5em}
-From a practical standpoint, Chromatix presents a healthy balance between user-friendliness and advanced capabilities. Even so, the library’s potential hinges on continued development and collaboration. By blending wave-optics simulations with the JAX ecosystem, it paves the way for new paradigms in designing, simulating, and optimizing complex photonic systems.
-
-\vspace{0.5em}
-Despite its strong foundation, Chromatix still faces several notable challenges:
-
-\vspace{0.5em}
-1. \textbf{Limited Optical Elements}: While the \texttt{elements} package covers common components like lenses and basic polarizers, many conventional and advanced elements (e.g., specialty diffractive optical elements, gradient-index lenses, complex polarization optics) are absent. This restricts the variety of systems that can be directly simulated out of the box
-
-\vspace{0.5em}
-2. \textbf{Approximate Modeling}: Chromatix often relies on paraxial or thin-lens approximations. Real-world scenarios that demand full vector wave solutions, non-paraxial modeling, or thick-lens corrections may only be partially captured without additional code.
-
-\vspace{0.5em}
-3. \textbf{Steep Learning Curve}: Mastering JAX transformations, wave-optics concepts, and Chromatix’s object model all at once can be challenging for newcomers.
+Summary of your findings, overall impressions, and effectiveness of Chromatix.
 
 \section{Future Work}
-1. \textbf{Broader Element Coverage}: Introduce new classes for advanced lenses (thick, GRIN), diffractive elements, polarization manipulators (birefringent crystals, Faraday rotators), and partial coherence modeling. This would significantly widen the scope of practical optical systems that can be studied.
-
-\vspace{0.5em}
-2. \textbf{Enhanced Physical Accuracy}: Address non-paraxial regimes, volumetric scattering, nonlinear effects, and other factors beyond simple approximations. Techniques like beam propagation methods (BPM) or finite-difference time-domain (FDTD) expansions (if feasible) might further increase realism.
-
-\vspace{0.5em}
-3. \textbf{Extended Documentation and Tutorials}: Publish advanced example notebooks demonstrating specialized setups (microscopy with aberration compensation, computational holographic displays, metasurface optimization, etc.). This would attract a broader user community and encourage collaboration.
-
-\vspace{0.5em}
-In conclusion, Chromatix stands at an exciting intersection of optical physics and machine learning. By capitalizing on JAX's auto-differentiation, it paves the way for novel inverse-design methodologies in photonics. Continued enhancements—particularly around element diversity, accuracy, performance, and ease of use—would solidify its role as a powerful engine for both academic research and industrial optical design.
+Recommendations for further study or improvements to the library and potential applications.
 
 \chapter{Acknowledgments}
 I wish to express my sincere gratitude to my supervisor, Prof. Dr. Vladan Blahnik, for supervising my internship. 
@@ -653,7 +589,6 @@ Special thanks to Prof. Dr. Frank Wyrowski, CEO of LightTrans GmbH, for providin
 
 \appendix
 \chapter{Additional Material}
-The Report on Chromatix is written in JupyterNotebook which can be found on my github repository. The report contains all the code snippets and figures used in this report. The link to the repository is as follows:
-\url{https://github.com/Xiong-Ziyi/Chromatix-Report/blob/main/Report_on_Chromatix.ipynb}
+Include additional scripts, code snippets, or supplementary material here.
 
 \end{document}
