@@ -1,0 +1,171 @@
+\documentclass[a4paper,12pt]{report}
+
+\usepackage{geometry}
+\geometry{margin=1in}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{tabularx}
+
+\lstset{%
+    basicstyle=\ttfamily\small,
+    frame=single,
+    backgroundcolor=\color{gray!10},
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!50!black},
+    stringstyle=\color{orange},
+    numbers=left,
+    numberstyle=\tiny,
+    numbersep=5pt,
+    showstringspaces=false,
+    breaklines=true
+}
+
+\begin{document}
+
+\begin{titlepage}
+    \begin{minipage}[t]{0.5\textwidth}
+        \includegraphics[width=1\textwidth]{ASP.jpeg}
+    \end{minipage}
+    \hfill
+    \begin{minipage}[t]{0.5\textwidth}
+        \raggedleft
+        \includegraphics[width=1\textwidth]{IAP.jpg}
+    \end{minipage}
+
+
+    \vspace{1cm}
+
+    {\Huge\centering\bfseries Internship Report\\[0.5cm]}
+    \vspace{1cm}
+
+    \raggedright
+    \large
+
+    {\centering\bfseries Topic: Report on Chromatix\\}
+
+    \vspace{2cm}
+
+    \centering\textbf{Author:}\\[0.5cm]
+    \centering Ziyi Xiong\\[0.5cm]
+    \centering Master Student in Photonics at ASP\\[0.5cm]
+    
+    \centering\textbf{Internship Period:}\\[0.5cm] 
+    \centering  01-09-2024 to 28-02-2025\\[0.5cm]
+    
+    \centering \textbf{Supervisor:} \\[0.5cm]
+    \centering Prof. Dr. Vladan Blahnik, Institute of Applied Physics\\[0.5cm]
+    
+    \centering\textbf{Industry Advisor:} \\[0.5cm]
+    \centering Prof. Dr. Frank Wyrowski, President of LightTrans GmbH\\
+
+    \vfill
+\end{titlepage}
+
+
+\tableofcontents
+\newpage
+
+\chapter{Introduction}
+\section{Context of the Internship}
+The internship was conducted under the joint guidance of my university supervisor, Prof. Dr. Vladan Blahnik, and my industry advisor, Prof. Dr. Frank Wyrowski. The project entailed a deep-dive analysis into the open-source Python library known as \textbf{Chromatix}, which was originally developed at HHMI Janelia Research Campus. This library leverages wave-optics and advanced computational frameworks (notably JAX and FLAX) to enable \textit{differentiable} simulations of optical systems.\newline
+\newline
+My role was to thoroughly understand Chromatix, from its underlying wave-optical theory to the structure of its Python source code, and to explore real use cases. Specifically, I examined how classes, functions, and modules contribute to building optical elements, performing wave propagation, and enabling inverse-design tasks such as optimizing lens parameters and masks.
+
+\section{Goals and Objectives}
+The primary goals of this internship were:
+\begin{enumerate}
+    \item \textbf{Comprehensive Code Analysis:} Understand and document the organization and functionality of the Chromatix library (classes, functions, modules).
+    \item \textbf{Theoretical Foundations:} Relate each function's or class's implementation to the fundamental physics of wave optics (e.g., Fresnel diffraction, Fourier transforms, Jones calculus, etc.).
+    \item \textbf{Practical Demonstrations:} Demonstrate usage through multiple example systems (simple widefield PSF simulation, a 4f system, and a CGH setup using a Digital Micromirror Device (DMD)).
+    \item \textbf{Evaluation \& Future Prospects:} Critically assess strengths, limitations, and propose future directions for library development.
+\end{enumerate}
+
+\section{Structure of This Report}
+This report is divided into the following chapters:
+\begin{itemize}
+    \item \textbf{Chapter 1: Introduction} - Provides an overview of the internship objectives and a brief introduction to Chromatix. Delves into the design principles, module structure, and theoretical basis of the library.
+    \item \textbf{Chapter 2: Core Source Code Analysis} - Explores the main classes and functions in Chromatix, mapping them to wave-optical principles.
+    \item \textbf{Chapter 3: Practical Usage Examples} - Demonstrates real-world simulations using Chromatix with extended code snippets.
+    \item \textbf{Chapter 4: Conclusions \& Future Work} - Summarizes key findings and offers recommendations for further improvements.
+\end{itemize}
+
+\chapter{Chromatix in Detail}
+\section{Overview}
+Chromatix is a differentiable wave-optics library designed to model complex optical systems while allowing gradient-based optimization, thanks to the JAX ecosystem. Key features include:
+\begin{itemize}
+    \item \textbf{GPU Acceleration}: Offloading large-scale computations to GPUs or TPUs.
+    \item \textbf{Inverse Design}: Using auto-differentiation to iteratively refine system parameters (e.g., lens curvature, phase masks).
+    \item \textbf{Modular Architecture}: Dividing code into multiple packages (\texttt{data}, \texttt{functional}, \texttt{elements}, etc.) for clarity and maintainability.
+    \item \textbf{Multi-Wavelength \& Polarization Handling}: Scalar and vector fields, and spectral weighting.
+\end{itemize}
+
+\section{High-Level Package Breakdown}
+\textbf{Chromatix} is organized into six major packages plus two additional modules:
+\begin{itemize}
+    \item \textbf{data}: Generates fundamental optical patterns (radial shapes, grayscale images) and can create permittivity tensors for materials. While not central to wave-propagation, it provides ready-made data for simulation.
+    \item \textbf{functional}: Implements physical transformations like Fresnel or Angular Spectrum propagation, lens-induced phase changes, amplitude/phase masks, polarizers, and sensor operations. This package is the mathematical backbone, reliant heavily on JAX (\texttt{jax.numpy}).
+    \item \textbf{elements}: Encapsulates optical components as trainable modules (subclasses of \texttt{flax.linen.Module}). For example, \textit{lens elements}, \textit{phase mask elements}, etc. This design allows each element to be optimized via gradient-based methods.
+    \item \textbf{systems}: Provides the \texttt{OpticalSystem} class to combine multiple \textit{elements} into a pipeline. Example systems include a standard microscope (\texttt{Microscopy}) and a 4f system (\texttt{Optical4FSystemPSF}).
+    \item \textbf{ops}: Supplies typical image-processing utilities (filters, noise, quantization) that can be integrated into pipeline simulations.
+    \item \textbf{utils}: Hosts a variety of helper functions (FFT wrappers, 2D/3D shape generation, Zernike polynomials, wavefront aberrations, etc.) to support the core simulation tasks.
+    \item \textbf{field.py}: Defines the \texttt{Field} class (with \texttt{ScalarField} and \texttt{VectorField}) that serve as the data structure for complex wave fields. Includes sampling intervals, wavelength arrays, and advanced indexing.
+    \item \textbf{\_\_init\_\_\.py}: Basic initializations, ensuring that the library is well-structured upon import.
+\end{itemize}
+
+\section{Core Theoretical Concepts}
+Chromatix leverages fundamental wave optics:
+\begin{enumerate}
+    \item \textbf{Fourier Optics}: The library heavily uses Fourier transforms to handle propagations (Fresnel, Fraunhofer, Angular Spectrum).
+    \item \textbf{Jones Calculus}: Particularly for vector fields, polarizers, and wave plates.
+    \item \textbf{Sampling Theory}: Ensuring that the discretized fields respect sampling requirements, particularly for FFT-based methods.
+    \item \textbf{Differentiable Programming}: JAX's automatic differentiation engine allows every wave transform to be differentiable w.r.t. design parameters.
+\end{enumerate}
+
+\chapter{Analysis of Chromatix}
+\section{Main Classes and Functions}
+Detailed analysis of the main classes and functions within the library, including theoretical background and practical code explanations.
+
+\subsection{Class 1: Name}
+Detailed explanation with theoretical background and code snippet examples.
+
+\subsection{Class 2: Name}
+Detailed explanation with theoretical background and code snippet examples.
+
+% Add additional classes/functions as subsections as needed.
+
+\section{Evaluation}
+Critical evaluation of the strengths, weaknesses, and limitations of the Chromatix library.
+
+\chapter{Application Examples}
+\section{Example 1: Building Optical System A}
+Description, purpose, implementation, and results.
+
+\section{Example 2: Building Optical System B}
+Description, purpose, implementation, and results.
+
+\chapter{Conclusion and Future Work}
+\section{Conclusion}
+Summary of your findings, overall impressions, and effectiveness of Chromatix.
+
+\section{Future Work}
+Recommendations for further study or improvements to the library and potential applications.
+
+\chapter{Acknowledgments}
+I wish to express my sincere gratitude to my supervisor, Prof. Dr. Vladan Blahnik, for supervising my internship. 
+
+Special thanks to Prof. Dr. , retired professor from [University/Institute], CEO of LightTrans GmbH, for providing the internship topic, invaluable insights, and continuous support throughout the project. 
+
+% Include anyone else you want to thank here.
+
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\appendix
+\chapter{Additional Material}
+Include additional scripts, code snippets, or supplementary material here.
+
+\end{document}
