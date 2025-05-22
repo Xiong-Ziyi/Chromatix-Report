@@ -1,111 +1,128 @@
 import jax
 import jax.numpy as jnp
 import optax
-from skimage.data import cat
-from typing import Tuple
-from functools import partial
+import numpy as np
 import matplotlib.pyplot as plt
+from skimage.data import cat
 
-# --- FFT and iFFT utils (unchanged) ---
-def fft(x: jnp.ndarray, axes: Tuple[int, int] = (0, 1), shift: bool = False) -> jnp.ndarray:
-    fft = partial(jnp.fft.fft2, axes=axes)
-    fftshift = partial(jnp.fft.fftshift, axes=axes)
-    ifftshift = partial(jnp.fft.ifftshift, axes=axes)
+# --- Force JAX to use float32, like Chromatix ---
+jax.config.update("jax_enable_x64", False)
+
+# --- FFT wrappers ---
+def fft(x, shift=False):
+    axes = (-2, -1)
     if shift:
-        return fftshift(fft(ifftshift(x)))
-    else:
-        return fft(x)
+        return jnp.fft.fftshift(jnp.fft.fft2(jnp.fft.ifftshift(x, axes=axes), axes=axes), axes=axes)
+    return jnp.fft.fft2(x, axes=axes)
 
-def ifft(x: jnp.ndarray, axes: Tuple[int, int] = (0, 1), shift: bool = False) -> jnp.ndarray:
-    ifft = partial(jnp.fft.ifft2, axes=axes)
-    fftshift = partial(jnp.fft.fftshift, axes=axes)
-    ifftshift = partial(jnp.fft.ifftshift, axes=axes)
+def ifft(x, shift=False):
+    axes = (-2, -1)
     if shift:
-        return fftshift(ifft(ifftshift(x)))
-    else:
-        return ifft(x)
+        return jnp.fft.fftshift(jnp.fft.ifft2(jnp.fft.ifftshift(x, axes=axes), axes=axes), axes=axes)
+    return jnp.fft.ifft2(x, axes=axes)
 
-# --- Define surrogate binarization ---
+# --- STE binarization ---
 @jax.custom_vjp
-def binarize_with_surrogate(x: jnp.ndarray) -> jnp.ndarray:
+def ste_binarize(x):
     return (x > 0.5).astype(jnp.float32)
 
-def binarize_with_surrogate_fwd(x):
-    y = (x > 0.5).astype(jnp.float32)
-    return y, (x,)  # <-- pack into a tuple!
+def ste_binarize_fwd(x):
+    return (x > 0.5).astype(jnp.float32), ()
 
-def binarize_with_surrogate_bwd(res, g):
-    (x,) = res  # <-- unpack from tuple
-    surrogate_grad = 37 * jnp.exp(-37 * (x - 0.5)) / ((1 + jnp.exp(-37 * (x - 0.5)))**2)
-    return (g * surrogate_grad,)
+def ste_binarize_bwd(_, g):
+    return (g,)
 
+ste_binarize.defvjp(ste_binarize_fwd, ste_binarize_bwd)
 
-binarize_with_surrogate.defvjp(binarize_with_surrogate_fwd, binarize_with_surrogate_bwd)
+# --- Forward model with padding, cropping, and phase kernel ---
+def forward_model(dmd, z, wavelength=0.66, dx=7.56, n=1.0, N_pad=0):
+    # Input shape: (1, H, W, 1, 1)
+    dmd_2d = dmd.squeeze((0, 3, 4)).astype(jnp.float32)  # shape: (H, W)
+    H, W = dmd_2d.shape
 
-# --- Forward model ---
-def forward_model(dmd: jnp.ndarray, z: jnp.ndarray, wavelength: jnp.ndarray = 0.66, dx: jnp.ndarray = 1.0, n: jnp.ndarray = 1.0) -> jnp.ndarray:
-    k_grid = jnp.array(jnp.meshgrid(
-        jnp.fft.fftshift(jnp.fft.fftfreq(dmd.shape[0])),
-        jnp.fft.fftshift(jnp.fft.fftfreq(dmd.shape[1])),
-        indexing="ij",
-    )) / dx
-    phase = -jnp.pi * (wavelength / n) * z * jnp.sum(k_grid**2, axis=0)
-    transfer_fn = jnp.fft.ifftshift(jnp.exp(1j * phase))
+    # Binarize then pad
+    bin_dmd = ste_binarize(dmd_2d)
+    pad_width = ((N_pad, N_pad), (N_pad, N_pad))
+    padded_dmd = jnp.pad(bin_dmd, pad_width, mode="constant", constant_values=0)
 
-    binarized_dmd = binarize_with_surrogate(dmd)
-    dmd_amp = ifft(fft(binarized_dmd) * transfer_fn)
-    img = jnp.abs(dmd_amp)**2
-    return img
+    # Propagation kernel
+    H_pad, W_pad = padded_dmd.shape
+    kx = jnp.fft.fftshift(jnp.fft.fftfreq(H_pad, dx))
+    ky = jnp.fft.fftshift(jnp.fft.fftfreq(W_pad, dx))
+    kx, ky = jnp.meshgrid(kx, ky, indexing='ij')
+    phase = -jnp.pi * (wavelength / n) * z * (kx**2 + ky**2)
+    H_kernel = jnp.fft.ifftshift(jnp.exp(1j * phase)).astype(jnp.complex64)
+
+    # FFT propagation (normalized)
+    padded_dmd = padded_dmd.astype(jnp.complex64)
+    field = ifft(fft(padded_dmd) * H_kernel)
+    intensity = jnp.abs(field)**2
+
+    # Crop back to original shape
+    recon = intensity[N_pad:N_pad+H, N_pad:N_pad+W]
+
+    return recon[None, ..., None, None]  # (1, H, W, 1, 1)
 
 # --- Loss ---
-def loss_fn(dmd: jnp.ndarray, target: jnp.ndarray, z: jnp.ndarray, wavelength: jnp.ndarray = 0.66, dx: jnp.ndarray = 1.0, n: jnp.ndarray = 1.0) -> jnp.ndarray:
-    img = forward_model(dmd, z, wavelength, dx, n)
-    loss = optax.cosine_distance(img.reshape(-1), target.reshape(-1), epsilon=1e-8).mean()
-    return loss
+def loss_fn(params, target, z):
+    pred = forward_model(params, z)
+    return optax.cosine_distance(pred.reshape(-1), target.reshape(-1)).mean()
 
-# --- Training ---
 grad_fn = jax.jit(jax.grad(loss_fn))
 
-def adam_optimizer(dmd: jnp.ndarray, target: jnp.ndarray, z: jnp.ndarray, num_iterations) -> jnp.ndarray:
-    opt_init, opt_update = optax.adam(learning_rate=0.1)
-    opt_state = opt_init(dmd)
+# --- Training ---
+def train(init_params, target, z, steps=400, lr=2.0):
+    opt = optax.adam(lr)
+    opt_state = opt.init(init_params)
+    params = init_params
 
-    for i in range(num_iterations):
-        grads = grad_fn(dmd, target, z)
-        updates, opt_state = opt_update(grads, opt_state, dmd)
-        dmd = optax.apply_updates(dmd, updates)
+    for i in range(steps):
+        grads = grad_fn(params, target, z)
+        updates, opt_state = opt.update(grads, opt_state, params)
+        params = optax.apply_updates(params, updates)
 
-        if i % 50 == 0:
-            loss = loss_fn(dmd, target, z)
-            print(f"Iteration {i}, Loss: {loss}")
+        if i % 40 == 0 or i == steps - 1:
+            recon_img = forward_model(params, z).squeeze()
+            target_img = target.squeeze()
+            loss = loss_fn(params, target, z)
+            corr = jnp.sum(recon_img * target_img) / (
+                jnp.sqrt(jnp.sum(recon_img**2) * jnp.sum(target_img**2)) + 1e-8
+            )
+            print(f"[{i}] Loss: {loss.item():.4f}, Corr: {corr.item():.4f}")
 
-    return dmd
+    return params
 
-# --- Main execution ---
-img = cat().mean(2)
-img = img[:, 100:400]
-target = jnp.array(img)
+# --- Load and prepare target image ---
+img = cat().mean(axis=2)[:, 100:400]
+img = img / img.max()  # Normalize
+H, W = 300, 300
+target = jnp.array(img, dtype=jnp.float32).reshape(1, H, W, 1, 1)
 
-num_iterations = 500
+# --- Initialization ---
+key = jax.random.PRNGKey(4)
+init = jax.nn.initializers.uniform(1.5)(key, (1, H, W, 1, 1)).astype(jnp.float32)
+
+# --- Propagation distance ---
 z = 13e4
-dmd = jax.random.uniform(jax.random.PRNGKey(0), shape=(300, 300))
 
-dmd = adam_optimizer(dmd, target, z, num_iterations)
+# --- Run training ---
+params = train(init, target, z)
 
-# Final hard binarization for visualization
-final_dmd = (dmd > 0.5).astype(jnp.float32)
-recon_img = forward_model(final_dmd, z)
+# --- Final hard binarization and evaluation ---
+binary_dmd = (params > 0.5).astype(jnp.float32)
+recon = forward_model(binary_dmd, z).squeeze()
+binary_dmd_2d = binary_dmd.squeeze()
 
-# --- Plotting ---
+# --- Visualization ---
 plt.figure(figsize=(10, 5))
 plt.subplot(1, 2, 1)
-plt.imshow(recon_img, cmap='gray')
+plt.imshow(recon, cmap='gray')
 plt.axis('off')
-plt.title('Reconstructed Image')
+plt.title("Reconstructed Image")
 
 plt.subplot(1, 2, 2)
-plt.imshow(final_dmd, cmap='gray')
+plt.imshow(binary_dmd_2d, cmap='gray')
 plt.axis('off')
-plt.title('DMD Pattern')
+plt.title("DMD Pattern")
 
 plt.show()
